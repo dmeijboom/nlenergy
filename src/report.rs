@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::{Local, NaiveDate, NaiveDateTime, TimeZone};
+use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
 use rusqlite::Connection;
 
 use crate::energy::{Joule, Rate, State, StateList};
@@ -9,13 +9,20 @@ use crate::energy::{Joule, Rate, State, StateList};
 pub fn cmd(db: Connection, span: String) -> Result<()> {
     let (begin, end) = span.split_at(span.find("..").unwrap());
     let (begin, end) = (
-        NaiveDate::parse_from_str(begin, "%Y-%m-%d")?,
-        NaiveDate::parse_from_str(&end[2..], "%Y-%m-%d")?,
+        NaiveDate::parse_from_str(begin, "%Y-%m-%d")?
+            .and_hms_opt(0, 0, 0)
+            .map(|dt| Utc.from_utc_datetime(&dt))
+            .unwrap(),
+        NaiveDate::parse_from_str(&end[2..], "%Y-%m-%d")?
+            .and_hms_opt(23, 59, 59)
+            .map(|dt| Utc.from_utc_datetime(&dt))
+            .unwrap(),
     );
 
     let mut nodes: HashMap<_, Vec<_>> = HashMap::new();
-    let mut stmt = db.prepare_cached("SELECT rate, energy, time FROM history")?;
-    let iter = stmt.query_map([], |row| {
+    let mut stmt =
+        db.prepare_cached("SELECT rate, energy, time FROM history WHERE time BETWEEN ? AND ?")?;
+    let iter = stmt.query_map([begin.timestamp(), end.timestamp()], |row| {
         Ok(State {
             rate: match row.get::<_, u8>(0)? {
                 1 => Rate::Normal,
@@ -23,17 +30,13 @@ pub fn cmd(db: Connection, span: String) -> Result<()> {
                 _ => unreachable!(),
             },
             energy: Joule(row.get(1)?),
-            time: Local
+            time: Utc
                 .from_utc_datetime(&NaiveDateTime::from_timestamp_opt(row.get(2)?, 0).unwrap()),
         })
     })?;
 
     for state in iter {
         let state = state?;
-
-        if state.time.date_naive() < begin || state.time.date_naive() > end {
-            continue;
-        }
 
         match nodes.get_mut(&state.rate) {
             Some(data) => data.push(state),

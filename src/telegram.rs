@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display, iter::Peekable, time::Duration};
 
 use anyhow::{anyhow, Result};
-use chrono::Local;
+use chrono::Utc;
 use logos::{Lexer, Logos};
 use reqwest::Client;
 use rusqlite::{Connection, Statement};
@@ -132,7 +132,7 @@ async fn tick(stmt: &mut Statement<'_>, client: &Client, endpoint: &str) -> Resu
         }
     }
 
-    let time = Local::now();
+    let time = Utc::now();
     let state = match current_rate {
         Some(1) => State {
             rate: Rate::Normal,

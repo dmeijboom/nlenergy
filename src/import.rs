@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use chrono::{Local, TimeZone};
+use chrono::{TimeZone, Utc};
 use csv::ReaderBuilder;
 use rusqlite::Connection;
 use rust_decimal::Decimal;
@@ -32,7 +32,7 @@ pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
 
     for result in reader.deserialize() {
         let record: Record = result?;
-        let time = Local.datetime_from_str(&record.time, "%Y-%m-%d %H:%M")?;
+        let time = Utc.datetime_from_str(&record.time, "%Y-%m-%d %H:%M")?;
 
         data.push(State {
             rate: Rate::Normal,

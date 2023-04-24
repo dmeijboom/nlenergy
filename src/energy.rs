@@ -1,6 +1,6 @@
 use std::ops::{AddAssign, Sub, SubAssign};
 
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 
 #[derive(Debug, Clone, Copy)]
@@ -50,7 +50,7 @@ pub enum Rate {
 pub struct State {
     pub rate: Rate,
     pub energy: Joule,
-    pub time: DateTime<Local>,
+    pub time: DateTime<Utc>,
 }
 
 impl State {
@@ -88,7 +88,7 @@ impl From<Vec<u8>> for State {
             _ => unreachable!("invalid rate"),
         };
         let energy = Joule(i64::from_le_bytes(energy_bytes));
-        let time = Local.from_utc_datetime(
+        let time = Utc.from_utc_datetime(
             &NaiveDateTime::from_timestamp_opt(i64::from_le_bytes(time_bytes), 0).unwrap(),
         );
 
