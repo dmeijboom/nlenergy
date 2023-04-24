@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use rusqlite::Connection;
 
 use crate::energy::{Joule, Rate, State, StateList};
@@ -22,7 +22,7 @@ pub fn cmd(db: Connection, span: String) -> Result<()> {
     let mut nodes: HashMap<_, Vec<_>> = HashMap::new();
     let mut stmt =
         db.prepare_cached("SELECT rate, energy, time FROM history WHERE time BETWEEN ? AND ?")?;
-    let iter = stmt.query_map([begin.timestamp(), end.timestamp()], |row| {
+    let iter = stmt.query_map([begin, end], |row| {
         Ok(State {
             rate: match row.get::<_, u8>(0)? {
                 1 => Rate::Normal,
@@ -30,8 +30,7 @@ pub fn cmd(db: Connection, span: String) -> Result<()> {
                 _ => unreachable!(),
             },
             energy: Joule(row.get(1)?),
-            time: Utc
-                .from_utc_datetime(&NaiveDateTime::from_timestamp_opt(row.get(2)?, 0).unwrap()),
+            time: row.get(2)?,
         })
     })?;
 
@@ -51,8 +50,8 @@ pub fn cmd(db: Connection, span: String) -> Result<()> {
     let mut total = Joule(0);
 
     for (rate, data) in nodes {
-        let start = data.first().map(|s| s.energy).unwrap_or_else(|| Joule(0));
-        let usage = data.last().map(|s| s.energy).unwrap_or_else(|| Joule(0)) - start;
+        let start = data.first().map(|s| s.energy).unwrap_or(Joule(0));
+        let usage = data.last().map(|s| s.energy).unwrap_or(Joule(0)) - start;
 
         total += usage;
 

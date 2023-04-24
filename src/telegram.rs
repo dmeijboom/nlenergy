@@ -80,19 +80,6 @@ async fn fetch_telegram(client: &Client, endpoint: &str) -> Result<String> {
     Ok(client.get(endpoint).send().await?.text().await?)
 }
 
-fn upsert(stmt: &mut Statement, state: State) -> Result<()> {
-    let checksum = state.checksum();
-
-    stmt.execute((
-        checksum,
-        state.time.timestamp(),
-        state.rate as u8,
-        state.energy.0,
-    ))?;
-
-    Ok(())
-}
-
 async fn tick(stmt: &mut Statement<'_>, client: &Client, endpoint: &str) -> Result<()> {
     let raw = fetch_telegram(client, endpoint).await?;
     let mut lex = Token::lexer(&raw).peekable();
@@ -148,7 +135,10 @@ async fn tick(stmt: &mut Statement<'_>, client: &Client, endpoint: &str) -> Resu
         None => return Err(anyhow!("no rate indicator found")),
     };
 
-    upsert(stmt, state)
+    let checksum = state.checksum();
+    stmt.execute((checksum, state.time, state.rate as u8, state.energy.0))?;
+
+    Ok(())
 }
 
 pub async fn cmd(db: Connection, endpoint: String) -> Result<()> {

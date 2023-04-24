@@ -3,6 +3,6 @@ CREATE TABLE history (
     checksum VARCHAR,
     rate TINYINT,
     energy BIGINT,
-    time INTEGER
+    time TIMESTAMP
 );
 CREATE UNIQUE INDEX history_checksum_idx ON history(checksum);

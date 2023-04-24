@@ -55,13 +55,7 @@ pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
 
     for state in data {
         let checksum = state.checksum();
-
-        stmt.execute((
-            checksum,
-            state.time.timestamp(),
-            state.rate as u8,
-            state.energy.0,
-        ))?;
+        stmt.execute((checksum, state.time, state.rate as u8, state.energy.0))?;
     }
 
     println!(">> imported records");
