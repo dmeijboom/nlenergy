@@ -1,4 +1,4 @@
-use std::ops::{AddAssign, Sub};
+use std::ops::{AddAssign, Sub, SubAssign};
 
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
@@ -32,6 +32,12 @@ impl Sub for Joule {
 impl AddAssign for Joule {
     fn add_assign(&mut self, rhs: Self) {
         *self = Joule(self.0 + rhs.0);
+    }
+}
+
+impl SubAssign for Joule {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = Joule(self.0 - rhs.0);
     }
 }
 

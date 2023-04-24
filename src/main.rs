@@ -8,6 +8,7 @@ use clap::Parser;
 mod energy;
 mod import;
 mod report;
+mod telegram;
 
 #[derive(Parser)]
 struct Opts {
@@ -25,14 +26,19 @@ enum Cmd {
 
     #[clap(name = "report")]
     Report { span: String },
+
+    #[clap(name = "telegram")]
+    Telegram { endpoint: String },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let db = sled::open("_data")?;
     let opts = Opts::parse();
 
     match opts.cmd {
         Cmd::Import { filename } => import::cmd(db, filename),
         Cmd::Report { span } => report::cmd(db, span),
+        Cmd::Telegram { endpoint } => telegram::cmd(db, endpoint).await,
     }
 }
