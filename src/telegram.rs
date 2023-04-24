@@ -4,8 +4,8 @@ use anyhow::{anyhow, Result};
 use chrono::Local;
 use logos::{Lexer, Logos};
 use reqwest::Client;
+use rusqlite::{Connection, Statement};
 use rust_decimal::Decimal;
-use sled::{Db, Tree};
 use tokio::time;
 
 use crate::energy::{Joule, Rate, State};
@@ -80,19 +80,20 @@ async fn fetch_telegram(client: &Client, endpoint: &str) -> Result<String> {
     Ok(client.get(endpoint).send().await?.text().await?)
 }
 
-fn upsert(tree: &Tree, state: State) -> Result<Option<State>> {
+fn upsert(stmt: &mut Statement, state: State) -> Result<()> {
     let checksum = state.checksum();
 
-    if tree.contains_key(&checksum)? {
-        return Ok(None);
-    }
+    stmt.execute((
+        checksum,
+        state.time.timestamp(),
+        state.rate as u8,
+        state.energy.0,
+    ))?;
 
-    tree.insert::<_, Vec<u8>>(checksum, (&state).into())?;
-
-    Ok(Some(state))
+    Ok(())
 }
 
-async fn tick(tree: &Tree, client: &Client, endpoint: &str) -> Result<Option<State>> {
+async fn tick(stmt: &mut Statement<'_>, client: &Client, endpoint: &str) -> Result<()> {
     let raw = fetch_telegram(client, endpoint).await?;
     let mut lex = Token::lexer(&raw).peekable();
 
@@ -147,19 +148,19 @@ async fn tick(tree: &Tree, client: &Client, endpoint: &str) -> Result<Option<Sta
         None => return Err(anyhow!("no rate indicator found")),
     };
 
-    upsert(tree, state)
+    upsert(stmt, state)
 }
 
-pub async fn cmd(db: Db, endpoint: String) -> Result<()> {
+pub async fn cmd(db: Connection, endpoint: String) -> Result<()> {
     let client = Client::new();
     let mut interval = time::interval(Duration::from_secs(1));
-    let tree = db.open_tree("energy/history")?;
+    let mut stmt = db.prepare(
+        "INSERT OR IGNORE INTO history (checksum, time, rate, energy) VALUES (?, ?, ?, ?)",
+    )?;
 
     loop {
-        match tick(&tree, &client, &endpoint).await {
-            Ok(Some(state)) => println!("new state: {state:?}"),
-            Ok(None) => {}
-            Err(e) => eprintln!("tick failed: {e:?}"),
+        if let Err(e) = tick(&mut stmt, &client, &endpoint).await {
+            eprintln!("tick failed: {e:?}");
         }
 
         interval.tick().await;

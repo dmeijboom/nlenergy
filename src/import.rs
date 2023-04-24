@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use chrono::{Local, TimeZone};
 use csv::ReaderBuilder;
+use rusqlite::Connection;
 use rust_decimal::Decimal;
 use serde::Deserialize;
-use sled::Db;
 
 use crate::energy::{Joule, Rate, State, StateList};
 
@@ -22,7 +22,7 @@ struct Record {
     t2_export: Decimal,
 }
 
-pub fn cmd(db: Db, filename: PathBuf) -> Result<()> {
+pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
     let mut reader = ReaderBuilder::new()
         .delimiter(b',')
         .has_headers(true)
@@ -49,21 +49,22 @@ pub fn cmd(db: Db, filename: PathBuf) -> Result<()> {
 
     data.normalize();
 
-    let mut count = 0;
-    let tree = db.open_tree("energy/history")?;
+    let mut stmt = db.prepare(
+        "INSERT OR IGNORE INTO history (checksum, time, rate, energy) VALUES (?, ?, ?, ?)",
+    )?;
 
     for state in data {
         let checksum = state.checksum();
 
-        if tree.contains_key(&checksum)? {
-            continue;
-        }
-
-        count += 1;
-        tree.insert::<_, Vec<u8>>(checksum, (&state).into())?;
+        stmt.execute((
+            checksum,
+            state.time.timestamp(),
+            state.rate as u8,
+            state.energy.0,
+        ))?;
     }
 
-    println!(">> imported {count} records");
+    println!(">> imported records");
 
     Ok(())
 }

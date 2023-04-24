@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
+use rusqlite::Connection;
 
 mod energy;
 mod import;
@@ -33,7 +34,7 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let db = sled::open("_data")?;
+    let db = Connection::open("data.db")?;
     let opts = Opts::parse();
 
     match opts.cmd {

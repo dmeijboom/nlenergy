@@ -1,24 +1,35 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::NaiveDate;
-use sled::Db;
+use chrono::{Local, NaiveDate, NaiveDateTime, TimeZone};
+use rusqlite::Connection;
 
 use crate::energy::{Joule, Rate, State, StateList};
 
-pub fn cmd(db: Db, span: String) -> Result<()> {
+pub fn cmd(db: Connection, span: String) -> Result<()> {
     let (begin, end) = span.split_at(span.find("..").unwrap());
     let (begin, end) = (
         NaiveDate::parse_from_str(begin, "%Y-%m-%d")?,
         NaiveDate::parse_from_str(&end[2..], "%Y-%m-%d")?,
     );
 
-    let tree = db.open_tree("energy/history")?;
     let mut nodes: HashMap<_, Vec<_>> = HashMap::new();
+    let mut stmt = db.prepare_cached("SELECT rate, energy, time FROM history")?;
+    let iter = stmt.query_map([], |row| {
+        Ok(State {
+            rate: match row.get::<_, u8>(0)? {
+                1 => Rate::Normal,
+                2 => Rate::OffPeak,
+                _ => unreachable!(),
+            },
+            energy: Joule(row.get(1)?),
+            time: Local
+                .from_utc_datetime(&NaiveDateTime::from_timestamp_opt(row.get(2)?, 0).unwrap()),
+        })
+    })?;
 
-    for record in &tree {
-        let (_, value) = record?;
-        let state = State::from(value);
+    for state in iter {
+        let state = state?;
 
         if state.time.date_naive() < begin || state.time.date_naive() > end {
             continue;

@@ -2,7 +2,6 @@ use std::ops::{AddAssign, Sub, SubAssign};
 
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use sled::IVec;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Joule(pub i64);
@@ -77,8 +76,8 @@ impl From<&State> for Vec<u8> {
     }
 }
 
-impl From<IVec> for State {
-    fn from(value: IVec) -> Self {
+impl From<Vec<u8>> for State {
+    fn from(value: Vec<u8>) -> Self {
         let kind_bytes = value[0];
         let energy_bytes: [u8; 8] = value[1..9].try_into().unwrap();
         let time_bytes: [u8; 8] = value[9..].try_into().unwrap();
