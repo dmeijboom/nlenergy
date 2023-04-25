@@ -6,12 +6,10 @@ use anyhow::Result;
 use clap::Parser;
 use diesel::{Connection, SqliteConnection};
 
+mod cmd;
 mod energy;
-mod import;
 mod models;
-mod report;
 mod schema;
-mod telegram;
 
 #[derive(Parser)]
 struct Opts {
@@ -41,8 +39,8 @@ async fn main() -> Result<()> {
     let opts = Opts::parse();
 
     match opts.cmd {
-        Cmd::Import { filename } => import::cmd(db, filename),
-        Cmd::Report { span } => report::cmd(conn, span),
-        Cmd::Telegram { endpoint } => telegram::cmd(conn, endpoint).await,
+        Cmd::Import { filename } => cmd::import::cmd(db, filename),
+        Cmd::Report { span } => cmd::report::cmd(conn, span),
+        Cmd::Telegram { endpoint } => cmd::telegram::cmd(conn, endpoint).await,
     }
 }
