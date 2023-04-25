@@ -4,11 +4,13 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
-use rusqlite::Connection;
+use diesel::{Connection, SqliteConnection};
 
 mod energy;
 mod import;
+mod models;
 mod report;
+mod schema;
 mod telegram;
 
 #[derive(Parser)]
@@ -34,12 +36,13 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let db = Connection::open("data.db")?;
+    let db = SqliteConnection::establish("./data.db")?;
+    let conn = rusqlite::Connection::open("data.db")?;
     let opts = Opts::parse();
 
     match opts.cmd {
         Cmd::Import { filename } => import::cmd(db, filename),
-        Cmd::Report { span } => report::cmd(db, span),
-        Cmd::Telegram { endpoint } => telegram::cmd(db, endpoint).await,
+        Cmd::Report { span } => report::cmd(conn, span),
+        Cmd::Telegram { endpoint } => telegram::cmd(conn, endpoint).await,
     }
 }

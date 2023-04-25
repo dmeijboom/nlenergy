@@ -1,13 +1,17 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
+use chrono::NaiveDateTime;
 use csv::ReaderBuilder;
-use rusqlite::Connection;
+use diesel::{insert_or_ignore_into, RunQueryDsl, SqliteConnection};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::energy::{Joule, Rate, State, StateList};
+use crate::{
+    energy::{Joule, Rate, State, StateList},
+    models::NewHistory,
+    schema::history,
+};
 
 #[derive(Debug, Deserialize)]
 struct Record {
@@ -22,7 +26,7 @@ struct Record {
     t2_export: Decimal,
 }
 
-pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
+pub fn cmd(mut db: SqliteConnection, filename: PathBuf) -> Result<()> {
     let mut reader = ReaderBuilder::new()
         .delimiter(b',')
         .has_headers(true)
@@ -32,7 +36,7 @@ pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
 
     for result in reader.deserialize() {
         let record: Record = result?;
-        let time = Utc.datetime_from_str(&record.time, "%Y-%m-%d %H:%M")?;
+        let time = NaiveDateTime::parse_from_str(&record.time, "%Y-%m-%d %H:%M")?;
 
         data.push(State {
             rate: Rate::Normal,
@@ -49,13 +53,20 @@ pub fn cmd(db: Connection, filename: PathBuf) -> Result<()> {
 
     data.normalize();
 
-    let mut stmt = db.prepare(
-        "INSERT OR IGNORE INTO history (checksum, time, rate, energy) VALUES (?, ?, ?, ?)",
-    )?;
-
     for state in data {
         let checksum = state.checksum();
-        stmt.execute((checksum, state.time, state.rate as u8, state.energy.0))?;
+
+        insert_or_ignore_into(history::table)
+            .values(&NewHistory {
+                checksum: &checksum,
+                rate: match state.rate {
+                    Rate::Normal => true,
+                    Rate::OffPeak => false,
+                },
+                energy: state.energy,
+                time: state.time,
+            })
+            .execute(&mut db)?;
     }
 
     println!(">> imported records");

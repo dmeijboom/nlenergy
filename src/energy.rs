@@ -1,10 +1,41 @@
 use std::ops::{AddAssign, Sub, SubAssign};
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::NaiveDateTime;
+use diesel::{
+    backend::{Backend, RawValue},
+    deserialize::FromSql,
+    serialize::ToSql,
+    sql_types::{BigInt, Bool},
+    AsExpression, FromSqlRow,
+};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, AsExpression, FromSqlRow)]
+#[diesel(sql_type = BigInt)]
 pub struct Joule(pub i64);
+
+impl<DB> FromSql<BigInt, DB> for Joule
+where
+    DB: Backend,
+    i64: FromSql<i64, DB>,
+{
+    fn from_sql(bytes: RawValue<'_, DB>) -> diesel::deserialize::Result<Self> {
+        i64::from_sql(bytes).map(Self)
+    }
+}
+
+impl<DB> ToSql<BigInt, DB> for Joule
+where
+    DB: Backend,
+    i64: ToSql<BigInt, DB>,
+{
+    fn to_sql<'a>(
+        &'a self,
+        out: &mut diesel::serialize::Output<'a, '_, DB>,
+    ) -> diesel::serialize::Result {
+        self.0.to_sql(out)
+    }
+}
 
 impl Joule {
     #[inline]
@@ -40,17 +71,47 @@ impl SubAssign for Joule {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Bool)]
 pub enum Rate {
-    Normal = 1,
-    OffPeak = 2,
+    Normal,
+    OffPeak,
+}
+
+impl<DB> FromSql<Bool, DB> for Rate
+where
+    DB: Backend,
+    bool: FromSql<bool, DB>,
+{
+    fn from_sql(bytes: RawValue<'_, DB>) -> diesel::deserialize::Result<Self> {
+        Ok(match bool::from_sql(bytes)? {
+            true => Self::Normal,
+            false => Self::OffPeak,
+        })
+    }
+}
+
+impl<DB> ToSql<BigInt, DB> for Rate
+where
+    DB: Backend,
+    bool: ToSql<Bool, DB>,
+{
+    fn to_sql<'a>(
+        &'a self,
+        out: &mut diesel::serialize::Output<'a, '_, DB>,
+    ) -> diesel::serialize::Result {
+        match self {
+            Rate::Normal => true.to_sql(out),
+            Rate::OffPeak => false.to_sql(out),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct State {
     pub rate: Rate,
     pub energy: Joule,
-    pub time: DateTime<Utc>,
+    pub time: NaiveDateTime,
 }
 
 impl State {
@@ -76,32 +137,12 @@ impl From<&State> for Vec<u8> {
     }
 }
 
-impl From<Vec<u8>> for State {
-    fn from(value: Vec<u8>) -> Self {
-        let kind_bytes = value[0];
-        let energy_bytes: [u8; 8] = value[1..9].try_into().unwrap();
-        let time_bytes: [u8; 8] = value[9..].try_into().unwrap();
-
-        let rate = match kind_bytes {
-            1 => Rate::Normal,
-            2 => Rate::OffPeak,
-            _ => unreachable!("invalid rate"),
-        };
-        let energy = Joule(i64::from_le_bytes(energy_bytes));
-        let time = Utc.from_utc_datetime(
-            &NaiveDateTime::from_timestamp_opt(i64::from_le_bytes(time_bytes), 0).unwrap(),
-        );
-
-        Self { rate, energy, time }
-    }
-}
-
 pub trait StateList {
     fn normalize(&mut self);
 }
 
 impl StateList for Vec<State> {
     fn normalize(&mut self) {
-        self.sort_by_key(|state| state.time.with_timezone(&Utc).timestamp());
+        self.sort_by_key(|state| state.time.timestamp());
     }
 }

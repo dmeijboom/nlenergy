@@ -119,7 +119,7 @@ async fn tick(stmt: &mut Statement<'_>, client: &Client, endpoint: &str) -> Resu
         }
     }
 
-    let time = Utc::now();
+    let time = Utc::now().naive_utc();
     let state = match current_rate {
         Some(1) => State {
             rate: Rate::Normal,
