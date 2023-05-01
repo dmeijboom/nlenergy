@@ -1,0 +1,17 @@
+[package]
+name = "telegram-worker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dsmr5 = "0.2.2"
+anyhow = "1.0.71"
+reqwest = "0.11.16"
+tokio = { version = "1.27.0", features = ["full"] }
+chrono = { version = "0.4.24", features = ["serde"] }
+clap = { version = "4.2.4", features = ["derive", "env"] }
+diesel = { version = "2.0.4", features = ["sqlite", "chrono"] }
+futures = "0.3.28"
+async-stream = "0.3.5"
