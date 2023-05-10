@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "rp-meter-reader/Cargo.toml"
+    ]
+}
